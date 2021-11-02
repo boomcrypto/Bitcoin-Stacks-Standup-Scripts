@@ -105,7 +105,7 @@ then
 fi
 
 # Output stdout and stderr to ~root files
-exec > >(tee -a /root/ubuntu.log) 2> >(tee -a /root/ubuntu.log /root/ubuntu.err >&2)
+exec > >(tee -a /root/standup.log) 2> >(tee -a /root/standup.log /root/standup.err >&2)
 
 ####
 # 2. Bring Debian Up To Date
@@ -145,19 +145,19 @@ ufw enable
 # 3. Set Up User
 ####
 
-echo "$0 - Setup ubuntu with sudo access."
+#echo "$0 - Setup ubuntu with sudo access."
 
 # Setup SSH Key if the user added one as an argument
-if [ -n "$SSH_KEY" ]
-then
+#if [ -n "$SSH_KEY" ]
+#then
 
-   mkdir ~ubuntu/.ssh
-   echo "$SSH_KEY" >> ~ubuntu/.ssh/authorized_keys
-   chown -R ubuntu ~ubuntu/.ssh
+#   mkdir ~cleavr/.ssh
+#   echo "$SSH_KEY" >> ~cleavr/.ssh/authorized_keys
+#   chown -R ubuntu ~cleavr/.ssh
 
-   echo "$0 - Added .ssh key to ubuntu."
+#   echo "$0 - Added .ssh key to ubuntu."
 
-fi
+# fi
 
 # Setup SSH allowed IP's if the user added any as an argument
 if [ -n "$SYS_SSH_IP" ]
@@ -205,17 +205,17 @@ sed -i -e 's/#ControlPort 9051/ControlPort 9051/g' /etc/tor/torrc
 sed -i -e 's/#CookieAuthentication 1/CookieAuthentication 1/g' /etc/tor/torrc
 sed -i -e 's/## address y:z./## address y:z.\
 \
-HiddenServiceDir \/var\/lib\/tor\/ubuntu\/\
+HiddenServiceDir \/var\/lib\/tor\/cleavr\/\
 HiddenServiceVersion 3\
 HiddenServicePort 1309 127.0.0.1:18332\
 HiddenServicePort 1309 127.0.0.1:18443\
 HiddenServicePort 1309 127.0.0.1:8332/g' /etc/tor/torrc
-mkdir /var/lib/tor/ubuntu
-chown -R debian-tor:debian-tor /var/lib/tor/ubuntu
-chmod 700 /var/lib/tor/ubuntu
+mkdir /var/lib/tor/cleavr
+chown -R debian-tor:debian-tor /var/lib/tor/cleavr
+chmod 700 /var/lib/tor/cleavr
 
 # Add ubuntu to the tor group so that the tor authentication cookie can be read by bitcoind
-sudo usermod -a -G debian-tor ubuntu
+sudo usermod -a -G debian-tor cleavr
 
 # Restart tor to create the HiddenServiceDir
 sudo systemctl restart tor.service
@@ -226,16 +226,16 @@ if ! [ "$PUBKEY" == "" ]
 then
 
   # create the directory manually incase tor.service did not restart quickly enough
-  mkdir /var/lib/tor/ubuntu/authorized_clients
+  mkdir /var/lib/tor/cleavr/authorized_clients
 
   # need to assign the owner
-  chown -R debian-tor:debian-tor /var/lib/tor/ubuntu/authorized_clients
+  chown -R debian-tor:debian-tor /var/lib/tor/cleavr/authorized_clients
 
   # Create the file for the pubkey
-  sudo touch /var/lib/tor/ubuntu/authorized_clients/fullynoded.auth
+  sudo touch /var/lib/tor/cleavr/authorized_clients/fullynoded.auth
 
   # Write the pubkey to the file
-  sudo echo "$PUBKEY" > /var/lib/tor/ubuntu/authorized_clients/fullynoded.auth
+  sudo echo "$PUBKEY" > /var/lib/tor/cleavr/authorized_clients/fullynoded.auth
 
   # Restart tor for authentication to take effect
   sudo systemctl restart tor.service
@@ -257,19 +257,18 @@ echo "$0 - Downloading Bitcoin; this will also take a while!"
 
 # CURRENT BITCOIN RELEASE:
 # Change as necessary
-export BITCOIN="bitcoin-core-0.20.1"
+export BITCOIN="bitcoin-core-0.21.1"
 export BITCOINPLAIN=`echo $BITCOIN | sed 's/bitcoin-core/bitcoin/'`
 
-https://bitcoin.org/bin/bitcoin-core-0.20.1/bitcoin-0.20.1-aarch64-linux-gnu.tar.gz
-sudo -u ubuntu wget https://bitcoincore.org/bin/$BITCOIN/$BITCOINPLAIN-aarch64-linux-gnu.tar.gz -O ~ubuntu/$BITCOINPLAIN-aarch64-linux-gnu.tar.gz
-sudo -u ubuntu wget https://bitcoincore.org/bin/$BITCOIN/SHA256SUMS.asc -O ~ubuntu/SHA256SUMS.asc
-sudo -u ubuntu wget https://bitcoin.org/laanwj-releases.asc -O ~ubuntu/laanwj-releases.asc
+sudo -u cleavr wget https://bitcoin.org/bin/$BITCOIN/$BITCOINPLAIN-x86_64-linux-gnu.tar.gz -O ~cleavr/$BITCOINPLAIN-x86_64-linux-gnu.tar.gz
+sudo -u cleavr wget https://bitcoin.org/bin/$BITCOIN/SHA256SUMS.asc -O ~cleavr/SHA256SUMS.asc
+sudo -u cleavr wget https://bitcoin.org/laanwj-releases.asc -O ~cleavr/laanwj-releases.asc
 
 # Verifying Bitcoin: Signature
 echo "$0 - Verifying Bitcoin."
 
-sudo -u ubuntu /usr/bin/gpg --no-tty --import ~ubuntu/laanwj-releases.asc
-export SHASIG=`sudo -u ubuntu /usr/bin/gpg --no-tty --verify ~ubuntu/SHA256SUMS.asc 2>&1 | grep "Good signature"`
+sudo -u cleavr /usr/bin/gpg --no-tty --import ~cleavr/laanwj-releases.asc
+export SHASIG=`sudo -u cleavr /usr/bin/gpg --no-tty --verify ~cleavr/SHA256SUMS.asc 2>&1 | grep "Good signature"`
 echo "SHASIG is $SHASIG"
 
 if [[ "$SHASIG" ]]
@@ -284,8 +283,8 @@ else
 fi
 
 # Verify Bitcoin: SHA
-export TARSHA256=`/usr/bin/sha256sum ~ubuntu/$BITCOINPLAIN-aarch64-linux-gnu.tar.gz | awk '{print $1}'`
-export EXPECTEDSHA256=`cat ~ubuntu/SHA256SUMS.asc | grep $BITCOINPLAIN-aarch64-linux-gnu.tar.gz | awk '{print $1}'`
+export TARSHA256=`/usr/bin/sha256sum ~cleavr/$BITCOINPLAIN-x86_64-linux-gnu.tar.gz | awk '{print $1}'`
+export EXPECTEDSHA256=`cat ~cleavr/SHA256SUMS.asc | grep $BITCOINPLAIN-x86_64-linux-gnu.tar.gz | awk '{print $1}'`
 
 if [ "$TARSHA256" == "$EXPECTEDSHA256" ]
 then
@@ -301,25 +300,27 @@ fi
 # Install Bitcoin
 echo "$0 - Installinging Bitcoin."
 
-sudo -u ubuntu /bin/tar xzf ~ubuntu/$BITCOINPLAIN-aarch64-linux-gnu.tar.gz -C ~ubuntu
-/usr/bin/install -m 0755 -o root -g root -t /usr/local/bin ~ubuntu/$BITCOINPLAIN/bin/*
-/bin/rm -rf ~ubuntu/$BITCOINPLAIN/
+sudo -u cleavr /bin/tar xzf ~cleavr/$BITCOINPLAIN-x86_64-linux-gnu.tar.gz -C ~cleavr
+/usr/bin/install -m 0755 -o root -g root -t /usr/local/bin ~cleavr/$BITCOINPLAIN/bin/*
+/bin/rm -rf ~cleavr/$BITCOINPLAIN/
 
 # Start Up Bitcoin
 echo "$0 - Configuring Bitcoin."
 
-sudo -u ubuntu /bin/mkdir ~ubuntu/.bitcoin
+sudo -u cleavr /bin/mkdir /stacks_node/bitcoin
+sudo -u cleavr /bin/mkdir /stacks_node/stacks
 
 # The only variation between Mainnet and Testnet is that Testnet has the "testnet=1" variable
 # The only variation between Regular and Pruned is that Pruned has the "prune=550" variable, which is the smallest possible prune
 RPCPASSWORD=$(xxd -l 16 -p /dev/urandom)
 
-cat >> ~ubuntu/.bitcoin/bitcoin.conf << EOF
+cat >> /stacks_node/bitcoin/bitcoin.conf << EOF
 server=1
 rpcuser=StandUp
 rpcpassword=$RPCPASSWORD
 rpcallowip=127.0.0.1
 debug=tor
+datadir=/stacks_node/bitcoin
 EOF
 
 if [ "$BTCTYPE" == "" ]; then
@@ -330,33 +331,33 @@ fi
 
 if [ "$BTCTYPE" == "Mainnet" ]; then
 
-cat >> ~ubuntu/.bitcoin/bitcoin.conf << EOF
+cat >> /stacks_node/bitcoin/bitcoin.conf << EOF
 txindex=1
 EOF
 
 elif [ "$BTCTYPE" == "Pruned Mainnet" ]; then
 
-cat >> ~ubuntu/.bitcoin/bitcoin.conf << EOF
+cat >> /stacks_node/bitcoin/bitcoin.conf << EOF
 prune=550
 EOF
 
 elif [ "$BTCTYPE" == "Testnet" ]; then
 
-cat >> ~ubuntu/.bitcoin/bitcoin.conf << EOF
+cat >> /stacks_node/bitcoin/bitcoin.conf << EOF
 txindex=1
 testnet=1
 EOF
 
 elif [ "$BTCTYPE" == "Pruned Testnet" ]; then
 
-cat >> ~ubuntu/.bitcoin/bitcoin.conf << EOF
+cat >> /stacks_node/bitcoin/bitcoin.conf << EOF
 prune=550
 testnet=1
 EOF
 
 elif [ "$BTCTYPE" == "Private Regtest" ]; then
 
-cat >> ~ubuntu/.bitcoin/bitcoin.conf << EOF
+cat >> /stacks_node/bitcoin/bitcoin.conf << EOF
 regtest=1
 txindex=1
 EOF
@@ -368,7 +369,7 @@ else
 
 fi
 
-cat >> ~ubuntu/.bitcoin/bitcoin.conf << EOF
+cat >> /stacks_node/bitcoin/bitcoin.conf << EOF
 [test]
 rpcbind=127.0.0.1
 rpcport=18332
@@ -380,8 +381,8 @@ rpcbind=127.0.0.1
 rpcport=18443
 EOF
 
-/bin/chown ubuntu ~ubuntu/.bitcoin/bitcoin.conf
-/bin/chmod 600 ~ubuntu/.bitcoin/bitcoin.conf
+/bin/chown cleavr /stacks_node/bitcoin/bitcoin.conf
+/bin/chmod 600 /stacks_node/bitcoin/bitcoin.conf
 
 # Setup bitcoind as a service that requires Tor
 echo "$0 - Setting up Bitcoin as a systemd service."
@@ -400,7 +401,7 @@ Description=Bitcoin daemon
 After=tor.service
 Requires=tor.service
 [Service]
-ExecStart=/usr/local/bin/bitcoind -conf=/home/ubuntu/.bitcoin/bitcoin.conf
+ExecStart=/usr/local/bin/bitcoind -conf=/stacks_node/bitcoin/bitcoin.conf
 # Process management
 ####################
 Type=simple
@@ -456,66 +457,66 @@ echo "$0 - You can manually stop Bitcoin with: sudo systemctl stop bitcoind.serv
 echo "$0 - You can manually start Bitcoin with: sudo systemctl start bitcoind.service"
 
 ####
-# 7. Install stacks-node
+# 7. Install stacks_node
 ####
 echo "$0 - Downloading Stacks Node; this will also take a while!"
 
 # CURRENT RELEASE from github
 export STACKSNODE_URL=`curl -s https://api.github.com/repos/blockstack/stacks-blockchain/releases/latest | grep 'browser_' | grep 'arm64' | cut -d\" -f4`
 
-sudo -u ubuntu wget $STACKSNODE_URL -O ~ubuntu/stacks-blockchain-linux-arm64.zip
+sudo -u cleavr wget $STACKSNODE_URL -O ~cleavr/stacks-blockchain-linux-arm64.zip
 
 
 # Install Stacks Node
 echo "$0 - Installinging Stacks Node."
 
-sudo -u ubuntu /bin/unzip ~ubuntu/stacks-blockchain-linux-arm64.zip -d ~ubuntu/stacks-blockchain
-sudo /usr/bin/install -m 0755 -o root -g root -t /usr/local/bin ~ubuntu/stacks-blockchain/*
-sudo /bin/rm -rf ~ubuntu/stacks-blockchain
-sudo /bin/rm ~ubuntu/stacks-blockchain-linux-arm64.zip
+sudo -u cleavr /bin/unzip ~cleavr/stacks-blockchain-linux-arm64.zip -d ~cleavr/stacks-blockchain
+sudo /usr/bin/install -m 0755 -o root -g root -t /usr/local/bin ~cleavr/stacks-blockchain/*
+sudo /bin/rm -rf ~cleavr/stacks-blockchain
+sudo /bin/rm ~cleavr/stacks-blockchain-linux-arm64.zip
 
 # Configure Stacks Node
 echo "$0 - Configuring Stacks Node."
 
-sudo -u ubuntu /bin/mkdir ~ubuntu/.stacks
+sudo -u cleavr /bin/mkdir /stacks_node/stacks
 
-sudo cat >> ~ubuntu/.stacks/stacks.toml << EOF
+sudo cat >> /stacks_node/stacks/stacks.toml << EOF
 [node]
 rpc_bind = "0.0.0.0:20443"
 p2p_bind = "0.0.0.0:20444"
-seed = "$MINER_KEY"
 # local_peer_seed is optional
 #local_peer_seed = "replace-with-your-private-key"
-miner = true
+miner = false
 EOF
 
 if [ "$BTCTYPE" == "Mainnet" ]; then
-cat >> ~ubuntu/.stacks/stacks.toml << EOF
+cat >> /stacks_node/stacks/stacks.toml << EOF
 bootstrap_node = "02da7a464ac770ae8337a343670778b93410f2f3fef6bea98dd1c3e9224459d36b@seed-0.mainnet.stacks.co:20444,02afeae522aab5f8c99a00ddf75fbcb4a641e052dd48836408d9cf437344b63516@seed-1.mainnet.stacks.co:20444,03652212ea76be0ed4cd83a25c06e57819993029a7b9999f7d63c36340b34a4e62@seed-2.mainnet.stacks.co:20444"
+wait_time_for_microblocks = 10000
 EOF
 
 elif [ "$BTCTYPE" == "Testnet" ]; then
-cat >> ~ubuntu/.stacks/stacks.toml << EOF
+cat >> /stacks_node/stacks/stacks.toml << EOF
 bootstrap_node = "047435c194e9b01b3d7f7a2802d6684a3af68d05bbf4ec8f17021980d777691f1d51651f7f1d566532c804da506c117bbf79ad62eea81213ba58f8808b4d9504ad@xenon.blockstack.org:20444"
 EOF
 fi
-cat >> ~ubuntu/.stacks/stacks.toml << EOF
-working_dir = "/home/ubuntu/.stacks/xenon"
-burn_fee_cap = 20000
-wait_time_for_microblocks = 15000
+cat >> /stacks_node/stacks/stacks.toml << EOF
+working_dir = "/stacks_node/stacks/"
+
+[[events_observer]]
+endpoint = "127.0.0.1:3700"
+retry_count = 255
+events_keys = ["*"]
 
 [burnchain]
 chain = "bitcoin"
 peer_host = "127.0.0.1"
 username = "StandUp"
 password = "$RPCPASSWORD"
-satoshis_per_byte = 100
-burn_fee_cap = 20000
-
 EOF
 
 if [ "$BTCTYPE" == "Mainnet" ]; then
-cat >> ~ubuntu/.stacks/stacks.toml << EOF
+cat >> /stacks_node/stacks/stacks.toml << EOF
 mode = "mainnet"
 rpc_port = 8332
 peer_port = 8333
@@ -523,7 +524,7 @@ EOF
 
 elif [ "$BTCTYPE" == "Testnet" ]; then
 
-cat >> ~ubuntu/.stacks/stacks.toml << EOF
+cat >> /stacks_node/stacks/stacks.toml << EOF
 mode = "xenon"
 rpc_port = 18332
 peer_port = 18333
@@ -546,15 +547,15 @@ amount = 10000000000000000
 EOF
 fi
 
-/bin/chown ubuntu ~ubuntu/.stacks/stacks.toml
-/bin/chmod 600 ~ubuntu/.stacks/stacks.toml
+/bin/chown cleavr /stacks_node/stacks/stacks.toml
+/bin/chmod 600 /stacks_node/stacks/stacks.toml
 
-# Setup stacks-node as a service 
+# Setup stacks_node as a service 
 echo "$0 - Setting up Stacks Node as a systemd service."
 
-sudo cat > /etc/systemd/system/stacks-node.service << EOF
+sudo cat > /etc/systemd/system/stacks_node.service << EOF
 [Unit]
-Description=Stacks Miner
+Description=Stacks Mainnet
 After=network.target
 After=bitcoind.service
 Requires=bitcoind.service
@@ -562,11 +563,11 @@ Requires=bitcoind.service
 [Service]
 Type=simple
 Restart=always
-User=ubuntu
+User=cleavr
 Group=sudo
 Environment=BLOCKSTACK_DEBUG=1
 Environment=RUST_BACKTRACE=FULL
-ExecStart=/usr/local/bin/stacks-node start --config=/home/ubuntu/.stacks/stacks.toml
+ExecStart=/usr/local/bin/stacks_node start --config=/stacks_node/stacks/stacks.toml
 MemoryDenyWriteExecute=true
 PrivateDevices=true
 ProtectSystem=full
@@ -577,12 +578,11 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl enable stacks-node.service
+sudo systemctl enable stacks_node.service
 
-echo "$0 - stacks-node service installed"
-echo "$0 to start use: sudo systemctl start stacks-node.service
-echo "$0 to stop use: sudo systemctl stop stacks-node.service
+echo "$0 - stacks_node service installed"
+echo "$0 to start use: sudo systemctl start stacks_node.service
+echo "$0 to stop use: sudo systemctl stop stacks_node.service
 
 # Finished, exit script
 exit 1
-
